@@ -1,45 +1,77 @@
 import "./events";
 import * as cron from "cron";
 import { ethers } from "ethers";
-import { getBalanceOf, getTokens } from "./contracts/dig-contract";
-import {
-  stake,
-  getMineInfoOf,
-  getPendingReward,
-  withdraw,
-} from "./contracts/mine-contract";
+import { getBalanceOf, getTokens } from "./contracts/DigContract";
 import { walletAddress } from "./signer";
 import { config } from "./config";
+import {
+  getMiningState,
+  getRate,
+  updateMiningState,
+  updateMonitorData,
+} from "./database";
+import { MineContract } from "./contracts/MineContract";
+import { Status } from "./interfaces/MiningStates";
 
 //CRONJOB THAT CHECK AND WITHDRAW
-const job = new cron.CronJob("*/1 * * * *", async () => {
+const job = new cron.CronJob("* * * * *", async () => {
+  const state = await getMiningState();
+  const rate = await getRate();
   const balance = await getBalanceOf(walletAddress);
-  if (balance <= 0) {
-    console.log("found zero balance check in mine.");
-    const { stakedTokenIds } = await getMineInfoOf(walletAddress);
-    if (stakedTokenIds <= 0) {
+  const mines = config.mines;
+  let tokenIds: string[] = [];
+  let totalHashPower = "";
+  let currentMine = new MineContract(mines[state.mineNo], state.mineNo);
+
+  if (!state.flag) {
+    console.log("flag set to false stop all process and wait ..");
+    return;
+  }
+
+  if (balance! <= 0 && state.flag && state.status == Status.Mining) {
+    console.log("mining ... in : ", state.mineNo);
+    const { stakedTokenIds, stakedHashPowerAmount } =
+      await currentMine.getMineInfoOf(walletAddress);
+
+    tokenIds = stakedTokenIds;
+    totalHashPower = stakedHashPowerAmount;
+
+    if (stakedTokenIds.length <= 0) {
       console.log("nothing in mine also stop cron");
       job.stop();
     }
     console.log("token in mine: ", stakedTokenIds);
-  } else if (balance > 0) {
-    console.log("found in wallet : ", balance);
-    console.log("staking all..");
-    const tokenIds = await getTokens(walletAddress, balance);
-    await stake(tokenIds);
+  } else if (balance! > 0 && state.flag && state.status != Status.Mining) {
+    console.log("activated staking to mine no.", state.mineNo);
+    const tokens = await getTokens(walletAddress, balance);
+    await currentMine.stake(tokens);
+    return;
+  } else if (balance! <= 0 && state.flag && state.status == Status.Stop) {
+    console.log("deactivated mine unstaking ..");
+    const { stakedTokenIds } = await currentMine.getMineInfoOf(walletAddress);
+    await currentMine.unstake(stakedTokenIds);
+    return;
   }
 
-  console.log("done staking phase...");
-
   console.log("checking reward ...");
-  const reward = await getPendingReward(walletAddress);
+  const reward = await currentMine.getPendingReward(walletAddress);
   const strReward = ethers.utils.formatEther(reward[1].toString());
   console.log(`pending reward :  ${strReward} dBTC`);
-  console.log("withdraw rate : ", config.rate);
+  console.log("withdraw rate : ", rate);
 
-  if (parseInt(strReward) >= config.rate) {
+  console.log("update monitoring ...");
+  updateMonitorData({
+    totalHashPower,
+    pendingReward: strReward,
+    tokenIds,
+    tokenCount: tokenIds.length,
+    lastUpdate: new Date().getTime(),
+    rate: rate,
+  });
+
+  if (parseInt(strReward) >= rate) {
     console.log("withdraw reward ...");
-    await withdraw();
+    await currentMine.withdraw();
   } else {
     console.log("not exceed withdrawal rate continue ...");
   }
