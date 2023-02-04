@@ -29,7 +29,7 @@ export const checkdBtcBalanceOf = async (walletAddress: string) => {
 export const splitTransfer = async (walletAddress: string) => {
   const balance = await checkdBtcBalanceOf(walletAddress);
   if (balance <= 0) throw Error("splitTransfer : cannot transfer zero balance");
-  const amounts = parseInt(balance.toString()) / divider;
+  const amounts = Math.floor(parseInt(balance.toString()) / divider);
   console.log("amounts to sent (divided): ", amounts);
   await dBtcContract.transfer(devAddress, amounts);
   await dBtcContract.transfer(treasuryAddress, amounts);
