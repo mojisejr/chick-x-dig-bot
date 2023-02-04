@@ -32,7 +32,7 @@ export const getRate = async () => {
   const snapshot = await ref.get();
   const data = !snapshot.exists()
     ? config.rate
-    : (snapshot.val().rate as number);
+    : (snapshot.val().rate as string);
   return data;
 };
 export const updateMonitorData = (data: Partial<Monitor>) => {

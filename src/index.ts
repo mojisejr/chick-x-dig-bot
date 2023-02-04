@@ -4,12 +4,7 @@ import { ethers } from "ethers";
 import { getBalanceOf, getTokens } from "./contracts/DigContract";
 import { walletAddress } from "./signer";
 import { config } from "./config";
-import {
-  getMiningState,
-  getRate,
-  updateMiningState,
-  updateMonitorData,
-} from "./database";
+import { getMiningState, getRate, updateMonitorData } from "./database";
 import { MineContract } from "./contracts/MineContract";
 import { Status } from "./interfaces/MiningStates";
 
@@ -22,9 +17,12 @@ const job = new cron.CronJob("* * * * *", async () => {
   let tokenIds: string[] = [];
   let totalHashPower = "";
   let currentMine = new MineContract(mines[state.mineNo], state.mineNo);
+  let now = new Date().getTime();
 
-  if (!state.flag) {
-    console.log("flag set to false stop all process and wait ..");
+  if (!state.flag && state.startTime < now) {
+    console.log(
+      "flag set to false or mine is closed stop all process and wait .."
+    );
     return;
   }
 
@@ -55,9 +53,9 @@ const job = new cron.CronJob("* * * * *", async () => {
 
   console.log("checking reward ...");
   const reward = await currentMine.getPendingReward(walletAddress);
-  const strReward = ethers.utils.formatEther(reward[1].toString());
+  const strReward: string = ethers.utils.formatEther(reward[1].toString());
   console.log(`pending reward :  ${strReward} dBTC`);
-  console.log("withdraw rate : ", rate);
+  console.log(`withdraw rate : ${rate} dBtc`);
 
   console.log("update monitoring ...");
   updateMonitorData({
@@ -69,7 +67,13 @@ const job = new cron.CronJob("* * * * *", async () => {
     rate: rate,
   });
 
-  if (parseInt(strReward) >= rate) {
+  console.log({
+    reward: parseFloat(strReward),
+    rate: parseFloat(rate),
+    compare: parseFloat(strReward) > parseFloat(rate),
+  });
+
+  if (parseFloat(strReward) >= parseFloat(rate)) {
     console.log("withdraw reward ...");
     await currentMine.withdraw();
   } else {

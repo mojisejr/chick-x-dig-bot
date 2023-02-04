@@ -8,5 +8,5 @@ export interface Monitor {
   lastWithdrawn?: number;
   state?: MiningState;
   lastUpdate: number;
-  rate?: number;
+  rate?: string;
 }

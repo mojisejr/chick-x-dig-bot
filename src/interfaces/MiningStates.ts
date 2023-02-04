@@ -3,6 +3,7 @@ export interface MiningState {
   contract: string;
   flag?: boolean;
   status: Status;
+  startTime: number;
 }
 
 export enum Status {

@@ -1,5 +1,5 @@
 export const config = {
-  rate: 0.00013,
+  rate: "0.00013",
   divider: 4,
   mines: [
     "0xD995B2cC01183268Ba124830E49963f3656f8e02",

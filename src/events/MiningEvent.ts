@@ -5,6 +5,7 @@ import { mineABI } from "../abi/MineABI";
 import { signer, walletAddress } from "../signer";
 import { updateMiningState } from "../database";
 import { Status } from "../interfaces/MiningStates";
+import { splitTransfer } from "../contracts/dBtcContract";
 
 config.mines.forEach((mine, index) => {
   const contract = new ethers.Contract(mine, mineABI, signer);
@@ -18,9 +19,14 @@ config.mines.forEach((mine, index) => {
     updateState(mine, Status.Stop);
     console.log(`${tokenIds} <-out mine ${index}`);
   });
-  contract.on(EVENT.RewardWithdrawn, (address) => {
+  contract.on(EVENT.RewardWithdrawn, async (address) => {
     if (address != walletAddress) return;
-    console.log("withdraw");
+    console.log("reward withdrawal .. ");
+    try {
+      await splitTransfer(walletAddress);
+    } catch (error) {
+      console.log(error);
+    }
   });
 });
 
